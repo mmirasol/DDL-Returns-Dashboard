@@ -84,7 +84,11 @@ h1{margin:0 0 4px;font-size:24px;letter-spacing:-0.01em}
 .btn[disabled]{background:rgba(11,11,11,.04);border-color:var(--border);color:var(--text-muted);cursor:not-allowed}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:15px}
 .scroll{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13.5px}
+/* Let the table scroll sideways rather than squeeze: a wrapped serial is
+   unreadable and an over-narrow notes column hides whether a cell holds a
+   value or a placeholder. */
+table{width:100%;min-width:1180px;border-collapse:collapse;font-size:13.5px}
+td .mono{white-space:nowrap}
 th{text-align:left;font-weight:600;color:var(--text-secondary);background:rgba(11,11,11,.025);padding:10px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
 th:first-child{padding-left:17px}
 th:last-child{padding-right:17px}
@@ -311,7 +315,7 @@ function viewAnton(){
       ['good','scrap','unsure'].map(v => '<option value="' + v + '"' + (r.verdict === v ? ' selected' : '') + '>' +
         (v === 'good' ? 'Good — add to stock' : v === 'scrap' ? 'Scrap' : 'Not sure') + '</option>').join('') +
       '</select></td>' +
-    '<td><input type="text" data-row="' + r.id + '" data-f="notes" value="' + esc(r.notes) + '"' + (editable ? '' : ' disabled') + ' aria-label="Notes for row ' + r.id + '" placeholder="peeled, mortise missing, repacked..."></td>' +
+    '<td><input type="text" data-row="' + r.id + '" data-f="notes" value="' + esc(r.notes) + '"' + (editable ? '' : ' disabled') + ' aria-label="Notes for row ' + r.id + '" placeholder="notes"></td>' +
     '<td style="text-align:right">' + (editable ? '<button type="button" class="x" data-del="' + r.id + '" aria-label="Remove row ' + r.id + '">×</button>' : '') + '</td></tr>').join('');
 
   const statusCtl = closed

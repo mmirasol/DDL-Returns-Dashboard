@@ -417,7 +417,7 @@ function viewAlyza(){
       '<td><select' + cls('colour') + ' data-row="' + r.id + '" data-f="colour"' + dis + ' aria-label="Colour for ' + esc(r.serial) + '">' +
         ['','Black','Copper','Silver','n/a'].map(c => '<option value="' + c + '"' + (r.colour === c ? ' selected' : '') + '>' + (c || '—') + '</option>').join('') +
         '</select></td>' +
-      '<td><input type="text"' + cls('qty') + ' data-row="' + r.id + '" data-f="qty" value="' + esc(r.qty) + '"' + dis + ' aria-label="Quantity for ' + esc(r.serial) + '" placeholder="1"></td>' +
+      '<td><input type="text"' + cls('qty') + ' data-row="' + r.id + '" data-f="qty" value="' + esc(r.qty) + '"' + dis + ' aria-label="Quantity for ' + esc(r.serial) + '" placeholder="qty"></td>' +
       '<td><span class="mono">' + esc(r.serial || '—') + '</span></td>' +
       '<td style="color:var(--text-secondary)">' + esc(r.order_no || '—') + '</td>' +
       '<td><input type="text"' + cls('customer') + ' data-row="' + r.id + '" data-f="customer" value="' + esc(r.customer) + '"' + dis + ' aria-label="Customer for ' + esc(r.serial) + '" placeholder="who returned it"></td>' +

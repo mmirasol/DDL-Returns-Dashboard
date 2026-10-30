@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DDL Returns</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{
+  --page-bg:#f9f9f7;
+  --surface:#fcfcfb;
+  --surface-2:#ffffff;
+  --text-primary:#0b0b0b;
+  --text-secondary:#52514e;
+  --text-muted:#898781;
+  --border:rgba(11,11,11,0.10);
+  --accent:#2a78d6;
+  --accent-soft:rgba(42,120,214,0.12);
+  --good:#0ca30c;
+  --critical:#d03b3b;
+  --warn:#b8860b;
+  --good-soft:rgba(12,163,12,0.12);
+  --warn-soft:rgba(184,134,11,0.14);
+  --critical-soft:rgba(208,59,59,0.12);
+  --shadow:0 1px 2px rgba(11,11,11,0.04), 0 8px 24px rgba(11,11,11,0.06);
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--page-bg);color:var(--text-primary);
+  font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent)}
+.wrap{max-width:1560px;margin:0 auto;padding:24px 24px 72px}
+header.top{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+h1{margin:0 0 4px;font-size:24px;letter-spacing:-0.01em}
+.sub{margin:0;color:var(--text-secondary);font-size:13.5px}
+.roles{display:flex;gap:6px;flex-wrap:wrap}
+.role{
+  min-height:44px;padding:10px 16px;border-radius:9px;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--text-primary);font:inherit;font-weight:600;cursor:pointer;
+}
+.role[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.role small{display:block;font-weight:400;font-size:11.5px;opacity:.75}
+.banner{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+  border:1px solid var(--border);border-left:4px solid var(--warn);background:var(--surface-2);
+  border-radius:10px;padding:12px 15px;margin-bottom:16px;font-size:13px;color:var(--text-secondary);
+}
+.cols{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.rail{flex:1 1 280px;min-width:258px;max-width:330px;display:flex;flex-direction:column;gap:9px}
+.rail h2{margin:0;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)}
+.railhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.batch{
+  display:block;width:100%;text-align:left;cursor:pointer;border-radius:10px;padding:13px 15px;
+  border:1px solid var(--border);background:var(--surface-2);font:inherit;box-shadow:var(--shadow);
+}
+.batch[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent),var(--shadow)}
+.batch .bt{display:block;font-size:15px;font-weight:600}
+.batch .bs{display:block;margin-top:3px;font-size:12.5px;color:var(--text-secondary)}
+.main{flex:999 1 660px;min-width:0;display:flex;flex-direction:column;gap:15px}
+.card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.card.on{border-color:var(--accent)}
+.cardhead{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:15px 17px;border-bottom:1px solid var(--border)}
+.cardhead.bare{border-bottom:0}
+.ct{margin:0 0 3px;font-size:17px;font-weight:600}
+.cs{margin:0;font-size:13px;color:var(--text-secondary)}
+.chip{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.chip.grey{background:rgba(11,11,11,.06);color:var(--text-secondary)}
+.chip.blue{background:var(--accent-soft);color:#17457F}
+.chip.green{background:var(--good-soft);color:#0a6b0a}
+.chip.amber{background:var(--warn-soft);color:#7a5c05}
+.chip.red{background:var(--critical-soft);color:#8f2525}
+.btn{
+  min-height:44px;padding:10px 17px;border-radius:9px;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--text-primary);font:inherit;font-weight:600;cursor:pointer;
+}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.ghost{min-height:36px;padding:7px 12px;font-size:13px;color:var(--accent)}
+.btn[disabled]{background:rgba(11,11,11,.04);border-color:var(--border);color:var(--text-muted);cursor:not-allowed}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:15px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-weight:600;color:var(--text-secondary);background:rgba(11,11,11,.025);padding:10px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+th:first-child{padding-left:17px}
+th:last-child{padding-right:17px}
+td{padding:4px 8px;border-bottom:1px solid rgba(11,11,11,.06);vertical-align:middle}
+td:first-child{padding-left:17px}
+td:last-child{padding-right:17px}
+tr.muted td{background:rgba(11,11,11,.015)}
+input[type=text],select{
+  width:100%;border:1px solid transparent;background:transparent;border-radius:6px;
+  padding:7px 8px;color:var(--text-primary);font:inherit;
+}
+input[type=text]:hover,select:hover{border-color:var(--border);background:var(--surface-2)}
+input[type=text]:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;background:var(--surface-2)}
+input[disabled],select[disabled]{color:var(--text-secondary);cursor:default}
+input.missing,select.missing{border-color:var(--warn);background:rgba(184,134,11,.07)}
+input.box,select.box{border:1px solid var(--border);background:var(--surface-2);min-height:44px;padding:10px 12px}
+.mono{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.foot{padding:12px 17px;border-top:1px solid var(--border);background:rgba(11,11,11,.02);color:var(--text-secondary);font-size:12.5px}
+.note{margin:0;color:var(--text-secondary);font-size:12.5px;line-height:1.55;max-width:860px}
+.empty{padding:34px 16px;text-align:center;color:var(--text-muted)}
+.x{min-width:32px;min-height:32px;border:0;background:transparent;color:var(--text-muted);border-radius:6px;cursor:pointer;font-size:17px;line-height:1}
+.x:hover{color:var(--critical);background:var(--critical-soft)}
+.stage{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-secondary);flex-wrap:wrap}
+.stage .s{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface-2);border-radius:999px;padding:5px 11px}
+.stage .s.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+label.inline{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);white-space:nowrap}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width:720px){ .wrap{padding:16px 16px 56px} .rail{max-width:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Customer returns</h1>
+      <p class="sub" id="sub">Digital Door Locks</p>
+    </div>
+    <div class="roles" id="roles" role="group" aria-label="Who are you"></div>
+  </header>
+  <div id="banner"></div>
+  <div id="view"></div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ config */
+/* Fill these in to run against Supabase. Left blank, the page runs on the
+   migrated history from data/history.json and keeps changes in this browser
+   only, which is enough to walk someone through it but is not the real tool. */
+const SUPABASE_URL = '';
+const SUPABASE_ANON_KEY = '';
+
+const LIVE = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+const LS_KEY = 'ddl-returns-demo-v1';
+
+const ROLES = [
+  { id:'anton',  name:'Anton',  job:'inspect and list' },
+  { id:'alyza',  name:'Alyza',  job:'complete and endorse' },
+  { id:'jerald', name:'Jerald', job:'Unleashed' }
+];
+
+/* ------------------------------------------------------------------- state */
+let client = null;
+let batches = [];
+let rows = [];
+let role = localStorage.getItem('ddl-returns-role') || 'anton';
+let openBatch = null;
+let tab = {};
+let search = '';
+
+/* ------------------------------------------------------------------ helpers */
+const $ = (sel, el) => (el || document).querySelector(sel);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rowsOf = b => rows.filter(r => r.batch_id === b.id);
+const byId = id => batches.find(b => b.id === id);
+
+const ALYZA_FIELDS = ['model','colour','qty','customer'];
+function missingOf(r){
+  if (r.verdict === 'scrap') return [];
+  return ALYZA_FIELDS.filter(f => !String(r[f] || '').trim());
+}
+function batchMissing(b){ return rowsOf(b).filter(r => missingOf(r).length).length; }
+function counts(b){
+  const rs = rowsOf(b);
+  const g = rs.filter(r => r.verdict === 'good').length;
+  const s = rs.filter(r => r.verdict === 'scrap').length;
+  const u = rs.length - g - s;
+  if (!rs.length) return 'Nothing in it yet';
+  return rs.length + ' locks · ' + g + ' good, ' + s + ' scrap' + (u ? ', ' + u + ' not sure' : '');
+}
+function batchChip(status){
+  if (status === 'draft')       return ['grey','With Anton'];
+  if (status === 'with_alyza')  return ['blue','With Alyza'];
+  if (status === 'with_jerald') return ['amber','With Jerald'];
+  return ['green','Closed'];
+}
+function dateLabel(d){
+  if (!d) return 'no date';
+  const dt = new Date(d + 'T00:00:00');
+  if (isNaN(dt)) return d;
+  return 'opened ' + dt.toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' });
+}
+
+/* -------------------------------------------------------------------- store */
+const store = {
+  async load(){
+    if (LIVE){
+      const [b, r] = await Promise.all([
+        client.from('returns_batch').select('*').order('opened_on', { ascending:false }).order('id', { ascending:false }),
+        client.from('returns_row').select('*').order('id', { ascending:true })
+      ]);
+      if (b.error) throw b.error;
+      if (r.error) throw r.error;
+      batches = b.data; rows = r.data;
+      return;
+    }
+    const saved = localStorage.getItem(LS_KEY);
+    if (saved){
+      const d = JSON.parse(saved);
+      batches = d.batches; rows = d.rows;
+      return;
+    }
+    const res = await fetch('data/history.json');
+    if (!res.ok) throw new Error('data/history.json did not load (' + res.status + ')');
+    const d = await res.json();
+    let bid = 0, rid = 0;
+    const map = {};
+    batches = d.batches.map(b => { bid++; map[b.ref] = bid; return Object.assign({}, b, { id: bid }); });
+    rows = d.rows.map(r => { rid++; const o = Object.assign({}, r, { id: rid, batch_id: map[r.batch_ref] }); delete o.batch_ref; return o; });
+    batches.sort((a,b) => String(b.opened_on || '').localeCompare(String(a.opened_on || '')) || b.id - a.id);
+    this.persist();
+  },
+  persist(){ if (!LIVE) localStorage.setItem(LS_KEY, JSON.stringify({ batches, rows })); },
+  async setRow(id, patch){
+    const r = rows.find(x => x.id === id); if (!r) return;
+    Object.assign(r, patch);
+    if (LIVE) { const { error } = await client.from('returns_row').update(patch).eq('id', id); if (error) alert('Could not save: ' + error.message); }
+    else this.persist();
+  },
+  async setBatch(id, patch){
+    const b = byId(id); if (!b) return;
+    Object.assign(b, patch);
+    if (LIVE) { const { error } = await client.from('returns_batch').update(patch).eq('id', id); if (error) alert('Could not save: ' + error.message); }
+    else this.persist();
+  },
+  async addRow(batch_id){
+    const blank = { batch_id, lock_text:'', order_no:'', serial:'', verdict:'good', notes:'',
+                    model:'', colour:'', qty:'', customer:'', comment:'', sa_number:null };
+    if (LIVE){
+      const { data, error } = await client.from('returns_row').insert(blank).select().single();
+      if (error) { alert('Could not add a row: ' + error.message); return; }
+      rows.push(data);
+    } else {
+      blank.id = Math.max(0, ...rows.map(r => r.id)) + 1;
+      rows.push(blank); this.persist();
+    }
+  },
+  async delRow(id){
+    rows = rows.filter(r => r.id !== id);
+    if (LIVE) { const { error } = await client.from('returns_row').delete().eq('id', id); if (error) alert('Could not remove the row: ' + error.message); }
+    else this.persist();
+  },
+  async addBatch(){
+    const today = new Date().toISOString().slice(0,10);
+    const label = 'Customer returns ' + new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long' });
+    const blank = { label, opened_on: today, status:'draft', source:'app', sa_number:null };
+    if (LIVE){
+      const { data, error } = await client.from('returns_batch').insert(blank).select().single();
+      if (error) { alert('Could not start a batch: ' + error.message); return null; }
+      batches.unshift(data); return data.id;
+    }
+    blank.id = Math.max(0, ...batches.map(b => b.id)) + 1;
+    blank.ref = 'C' + blank.id;
+    batches.unshift(blank); this.persist(); return blank.id;
+  }
+};
+
+/* ------------------------------------------------------------------ chrome */
+function renderRoles(){
+  $('#roles').innerHTML = ROLES.map(r =>
+    '<button type="button" class="role" data-role="' + r.id + '" aria-pressed="' + (r.id === role) + '">' +
+    esc(r.name) + '<small>' + esc(r.job) + '</small></button>').join('');
+}
+function stageStrip(active){
+  return '<div class="stage">' + ROLES.map((r,i) =>
+    (i ? '<span aria-hidden="true">→</span>' : '') +
+    '<span class="s' + (r.id === active ? ' on' : '') + '">' + esc(r.name) + '</span>').join('') + '</div>';
+}
+function renderBanner(){
+  if (LIVE) { $('#banner').innerHTML = ''; return; }
+  $('#banner').innerHTML =
+    '<div class="banner"><span><strong>Preview.</strong> Running on the ' + rows.length +
+    ' rows migrated out of Return to UNLEASHED.xlsx. Anything you change is kept in this browser only, ' +
+    'and nobody else sees it. Point it at Supabase to make it the real thing.</span>' +
+    '<button type="button" class="btn ghost" id="reset">Reset preview</button></div>';
+}
+
+/* ------------------------------------------------------------------- Anton */
+function viewAnton(){
+  // His own batches, plus the last few closed ones so he can look something up.
+  const mine = batches.filter(b => b.source !== 'legacy');
+  const list = mine.concat(batches.filter(b => b.source === 'legacy').slice(0, 5));
+  let b = byId(openBatch) || list[0];
+  if (!b) return '<p class="note">No batches yet.</p>';
+  openBatch = b.id;
+
+  const editable = b.status === 'draft';
+  const closed = b.status === 'closed';
+  const rs = rowsOf(b);
+
+  const rail = list.map(x => {
+    const c = batchChip(x.status);
+    return '<button type="button" class="batch" data-batch="' + x.id + '" aria-pressed="' + (x.id === b.id) + '">' +
+      '<span class="bt">' + esc(x.label) + '</span>' +
+      '<span class="bs">' + esc(dateLabel(x.opened_on)) + ' · ' + rowsOf(x).length + ' locks</span>' +
+      '<span class="chip ' + c[0] + '" style="margin-top:8px">' + c[1] + '</span></button>';
+  }).join('');
+
+  const body = rs.map(r =>
+    '<tr>' +
+    '<td><input type="text" data-row="' + r.id + '" data-f="lock_text" value="' + esc(r.lock_text) + '"' + (editable ? '' : ' disabled') + ' aria-label="Lock for row ' + r.id + '" placeholder="e.g. DDL709 INBODY COPPER"></td>' +
+    '<td><input type="text" data-row="' + r.id + '" data-f="order_no" value="' + esc(r.order_no) + '"' + (editable ? '' : ' disabled') + ' aria-label="Order number for row ' + r.id + '" placeholder="customer, retailer or consignment"></td>' +
+    '<td><input type="text" class="mono" data-row="' + r.id + '" data-f="serial" value="' + esc(r.serial) + '"' + (editable ? '' : ' disabled') + ' aria-label="Serial number for row ' + r.id + '" placeholder="serial number"></td>' +
+    '<td><select data-row="' + r.id + '" data-f="verdict"' + (editable ? '' : ' disabled') + ' aria-label="Verdict for row ' + r.id + '">' +
+      ['good','scrap','unsure'].map(v => '<option value="' + v + '"' + (r.verdict === v ? ' selected' : '') + '>' +
+        (v === 'good' ? 'Good — add to stock' : v === 'scrap' ? 'Scrap' : 'Not sure') + '</option>').join('') +
+      '</select></td>' +
+    '<td><input type="text" data-row="' + r.id + '" data-f="notes" value="' + esc(r.notes) + '"' + (editable ? '' : ' disabled') + ' aria-label="Notes for row ' + r.id + '" placeholder="peeled, mortise missing, repacked..."></td>' +
+    '<td style="text-align:right">' + (editable ? '<button type="button" class="x" data-del="' + r.id + '" aria-label="Remove row ' + r.id + '">×</button>' : '') + '</td></tr>').join('');
+
+  const statusCtl = closed
+    ? '<span class="chip green">Closed by Jerald</span>'
+    : '<label class="inline">Batch status' +
+      '<select class="box" id="batch-status" style="width:230px" aria-label="Status of this batch">' +
+      '<option value="draft"' + (b.status === 'draft' ? ' selected' : '') + '>Still inspecting</option>' +
+      '<option value="with_alyza"' + (b.status !== 'draft' ? ' selected' : '') + '>Ready for Alyza</option>' +
+      '</select></label>';
+
+  const note = closed
+    ? 'Jerald has added this batch back into stock. It is here so you can look it up, nothing more.'
+    : editable
+      ? 'Set the status to Ready for Alyza when the whole batch is inspected. Until then it stays yours, however long that takes.'
+      : 'This batch is with Alyza, so the rows are read only. Set it back to Still inspecting if you need to change something.';
+
+  return stageStrip('anton') +
+   '<div class="cols" style="margin-top:14px">' +
+    '<div class="rail"><div class="railhead"><h2>Your batches</h2>' +
+      '<button type="button" class="btn ghost" id="new-batch">+ New batch</button></div>' + rail +
+      '<p class="note" style="margin-top:4px">A batch stays open until you say it is ready. Start a new one whenever you like.</p></div>' +
+    '<div class="main">' +
+      '<div class="card' + (editable ? '' : ' on') + '"><div class="cardhead bare">' +
+        '<div><p class="ct">' + esc(b.label) + '</p><p class="cs">' + esc(dateLabel(b.opened_on)) + ' · ' + counts(b) + '</p></div>' +
+        statusCtl + '</div></div>' +
+      '<div class="card"><div class="scroll"><table><thead><tr>' +
+        '<th style="width:210px">Lock</th><th style="width:250px">Order no</th><th style="width:245px">Serial number</th>' +
+        '<th style="width:190px">Verdict</th><th>Notes</th><th style="width:54px"><span class="sr">Remove</span></th>' +
+        '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+        (rs.length ? '' : '<div class="empty">No locks in this batch yet.</div>') +
+        (editable ? '<div class="foot"><button type="button" class="btn" id="add-row" style="min-height:40px">+ Add row</button></div>' : '') +
+      '</div>' +
+      '<p class="note">' + note + '</p>' +
+    '</div></div>';
+}
+
+/* ------------------------------------------------------------------- Alyza */
+function viewAlyza(){
+  const t = tab.alyza || 'queue';
+  const waiting = batches.filter(b => b.status === 'with_alyza');
+  const tabs = '<div class="tabs">' +
+    '<button type="button" class="role" data-tab="alyza:queue" aria-pressed="' + (t === 'queue') + '">Waiting for me (' + waiting.length + ')</button>' +
+    '<button type="button" class="role" data-tab="alyza:all" aria-pressed="' + (t === 'all') + '">All returns (' + rows.length + ')</button>' +
+    '</div>';
+
+  if (t === 'all'){
+    const q = search.toLowerCase();
+    const hits = rows.filter(r => !q || (r.model + ' ' + r.lock_text + ' ' + r.serial + ' ' + r.customer + ' ' + r.order_no).toLowerCase().includes(q));
+    const shown = hits.slice(0, 300);
+    const body = shown.map(r => {
+      const b = byId(r.batch_id) || {};
+      const out = r.sa_number ? esc(r.sa_number) : (r.verdict === 'scrap' ? 'Scrapped' : esc(r.legacy_status || '—'));
+      return '<tr><td style="white-space:nowrap;color:var(--text-secondary)">' + esc(b.label || '') + '</td>' +
+        '<td>' + esc(r.model || r.lock_text) + '</td>' +
+        '<td><span class="mono">' + esc(r.serial || '—') + '</span></td>' +
+        '<td>' + esc(r.customer || r.order_no || '—') + '</td>' +
+        '<td style="color:var(--text-secondary)">' + esc(r.comment || r.legacy_resell || '—') + '</td>' +
+        '<td><span class="mono" style="color:var(--accent)">' + out + '</span></td></tr>';
+    }).join('');
+    return stageStrip('alyza') + '<div style="margin-top:14px">' + tabs +
+      '<div class="card"><div class="cardhead">' +
+        '<div><p class="ct">Every return on record</p><p class="cs">' + rows.length + ' rows across ' + batches.length +
+        ' batches, carried over from Return to UNLEASHED.xlsx</p></div>' +
+        '<label class="inline">Search<input type="text" class="box" id="search" style="width:260px" value="' + esc(search) + '" placeholder="serial, model or customer"></label>' +
+      '</div><div class="scroll"><table><thead><tr>' +
+        '<th style="width:190px">Batch</th><th style="width:220px">Model / part</th><th style="width:230px">Serial</th>' +
+        '<th style="width:200px">Customer</th><th>Comment</th><th style="width:160px">Outcome</th>' +
+      '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+      '<div class="foot">Showing ' + shown.length + ' of ' + rows.length + ' rows. Outcome is the Unleashed stock adjustment Jerald recorded.</div>' +
+      '</div></div>';
+  }
+
+  let b = waiting.find(x => x.id === openBatch) || waiting[0];
+  if (!b){
+    return stageStrip('alyza') + '<div style="margin-top:14px">' + tabs +
+      '<div class="card"><div class="empty">Nothing waiting. Every batch Anton has sent is with Jerald.</div></div></div>';
+  }
+  openBatch = b.id;
+  const rs = rowsOf(b);
+  const miss = batchMissing(b);
+
+  const rail = waiting.map(x => {
+    const m = batchMissing(x);
+    return '<button type="button" class="batch" data-batch="' + x.id + '" aria-pressed="' + (x.id === b.id) + '">' +
+      '<span class="bt">' + esc(x.label) + '</span>' +
+      '<span class="bs">' + rowsOf(x).length + ' locks · ' + esc(dateLabel(x.opened_on)) + '</span>' +
+      '<span class="chip ' + (m ? 'amber' : 'green') + '" style="margin-top:8px">' + (m ? m + ' rows to complete' : 'Complete') + '</span></button>';
+  }).join('');
+
+  const body = rs.map(r => {
+    const m = missingOf(r);
+    const scrap = r.verdict === 'scrap';
+    const chip = scrap ? ['red','Scrap'] : m.length ? ['amber', m.length + ' missing'] : ['green','Complete'];
+    const cls = f => (!String(r[f] || '').trim() && !scrap) ? ' class="missing"' : '';
+    const dis = scrap ? ' disabled' : '';
+    return '<tr' + (scrap ? ' class="muted"' : '') + '>' +
+      '<td><span class="chip ' + chip[0] + '">' + chip[1] + '</span></td>' +
+      '<td><input type="text"' + cls('model') + ' data-row="' + r.id + '" data-f="model" value="' + esc(r.model) + '"' + dis + ' aria-label="Model for ' + esc(r.serial) + '" placeholder="' + (scrap ? 'not needed' : 'product code') + '"></td>' +
+      '<td><select' + cls('colour') + ' data-row="' + r.id + '" data-f="colour"' + dis + ' aria-label="Colour for ' + esc(r.serial) + '">' +
+        ['','Black','Copper','Silver','n/a'].map(c => '<option value="' + c + '"' + (r.colour === c ? ' selected' : '') + '>' + (c || '—') + '</option>').join('') +
+        '</select></td>' +
+      '<td><input type="text"' + cls('qty') + ' data-row="' + r.id + '" data-f="qty" value="' + esc(r.qty) + '"' + dis + ' aria-label="Quantity for ' + esc(r.serial) + '" placeholder="1"></td>' +
+      '<td><span class="mono">' + esc(r.serial || '—') + '</span></td>' +
+      '<td style="color:var(--text-secondary)">' + esc(r.order_no || '—') + '</td>' +
+      '<td><input type="text"' + cls('customer') + ' data-row="' + r.id + '" data-f="customer" value="' + esc(r.customer) + '"' + dis + ' aria-label="Customer for ' + esc(r.serial) + '" placeholder="who returned it"></td>' +
+      '<td><input type="text" data-row="' + r.id + '" data-f="comment" value="' + esc(r.comment) + '"' + dis + ' aria-label="Comment for ' + esc(r.serial) + '" placeholder="—"></td></tr>';
+  }).join('');
+
+  return stageStrip('alyza') + '<div style="margin-top:14px">' + tabs +
+    '<div class="cols">' +
+    '<div class="rail"><h2>Batches waiting for you</h2>' + rail + '</div>' +
+    '<div class="main">' +
+      '<div class="card on"><div class="cardhead bare">' +
+        '<div><p class="ct">' + esc(b.label) + '</p><p class="cs">' + rs.length + ' locks · ' + (miss ? miss + ' still to complete' : 'nothing missing') + '</p></div>' +
+        '<button type="button" class="btn primary" id="endorse"' + (miss ? ' disabled' : '') + '>Endorse batch to Jerald</button>' +
+      '</div></div>' +
+      '<div class="card"><div class="scroll"><table><thead><tr>' +
+        '<th style="width:120px">Row</th><th style="width:210px">Model / part</th><th style="width:115px">Colour</th>' +
+        '<th style="width:70px">Qty</th><th style="width:225px">Serial</th><th style="width:205px">Order no <span style="font-weight:400">(Anton)</span></th>' +
+        '<th style="width:175px">Customer</th><th>Comment</th>' +
+      '</tr></thead><tbody>' + body + '</tbody></table></div></div>' +
+      '<p class="note">Blanks stay outlined until they are filled. Endorse is off until the whole batch is complete, and scrap rows never reach Jerald.</p>' +
+    '</div></div></div>';
+}
+
+/* ------------------------------------------------------------------ Jerald */
+function viewJerald(){
+  const t = tab.jerald || 'pending';
+  const pending = batches.filter(b => b.status === 'with_jerald');
+  const done = batches.filter(b => b.status === 'closed');
+  const shown = t === 'pending' ? pending : done.slice(0, 25);
+
+  const tabs = '<div class="tabs">' +
+    '<button type="button" class="role" data-tab="jerald:pending" aria-pressed="' + (t === 'pending') + '">Waiting for me (' + pending.length + ')</button>' +
+    '<button type="button" class="role" data-tab="jerald:done" aria-pressed="' + (t === 'done') + '">Closed (' + done.length + ')</button>' +
+    '</div>';
+
+  if (!shown.length){
+    return stageStrip('jerald') + '<div style="margin-top:14px">' + tabs +
+      '<div class="card"><div class="empty">Nothing here. Alyza has not endorsed a batch yet.</div></div></div>';
+  }
+
+  const cards = shown.map(b => {
+    const rs = rowsOf(b);
+    const keep = rs.filter(r => r.verdict !== 'scrap');
+    const scrap = rs.length - keep.length;
+    const closed = b.status === 'closed';
+    const body = keep.slice(0, 60).map(r =>
+      '<tr><td style="font-weight:500">' + esc(r.model || r.lock_text || '—') + '</td>' +
+      '<td>' + esc(r.colour || '—') + '</td><td>' + esc(r.qty || '—') + '</td>' +
+      '<td><span class="mono">' + esc(r.serial || '—') + '</span></td>' +
+      '<td>' + esc(r.customer || r.order_no || '—') + '</td>' +
+      '<td style="color:var(--text-secondary)">' + esc(r.comment || '—') + '</td></tr>').join('');
+
+    const head = closed
+      ? '<span class="chip green">Returned to stock · <span class="mono">' + esc(b.sa_number || 'no number') + '</span></span>'
+      : '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+        '<label class="inline">Stock adjustment<input type="text" class="box mono" data-sa="' + b.id + '" style="width:175px" value="' + esc(b.sa_number || '') + '" placeholder="SA-00001928" aria-label="Stock adjustment number for ' + esc(b.label) + '"></label>' +
+        '<button type="button" class="btn primary" data-close="' + b.id + '"' + ((b.sa_number || '').trim().length > 2 ? '' : ' disabled') + '>Mark returned to stock</button></div>';
+
+    return '<div class="card' + (closed ? '' : ' on') + '" style="margin-bottom:16px">' +
+      '<div class="cardhead"><div><p class="ct">' + esc(b.label) + '</p>' +
+      '<p class="cs">' + keep.length + ' locks to add back · ' + esc(dateLabel(b.opened_on)) + '</p></div>' + head + '</div>' +
+      '<div class="scroll"><table><thead><tr>' +
+        '<th style="width:235px">Model / part</th><th style="width:115px">Colour</th><th style="width:70px">Qty</th>' +
+        '<th style="width:240px">Serial</th><th style="width:195px">Customer</th><th>Comment</th>' +
+      '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+      (keep.length > 60 ? '<div class="foot">Showing the first 60 of ' + keep.length + ' locks.</div>' : '') +
+      (scrap ? '<div class="foot">' + scrap + ' scrap row' + (scrap > 1 ? 's' : '') + ' hidden. Scrap never comes back into stock.</div>' : '') +
+      '</div>';
+  }).join('');
+
+  return stageStrip('jerald') + '<div style="margin-top:14px">' + tabs + cards +
+    '<p class="note">Every row here is already complete, so the stock adjustment is the only work left. Recording the number closes the batch.</p></div>';
+}
+
+/* ------------------------------------------------------------------ render */
+function render(){
+  renderRoles();
+  renderBanner();
+  const who = ROLES.find(r => r.id === role);
+  $('#sub').textContent = 'Digital Door Locks · ' + who.name + ', ' + who.job;
+  $('#view').innerHTML = role === 'anton' ? viewAnton() : role === 'alyza' ? viewAlyza() : viewJerald();
+}
+
+/* ------------------------------------------------------------------ events */
+let timer = null;
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.id === 'search'){ search = el.value; clearTimeout(timer); timer = setTimeout(render, 220); return; }
+  if (el.dataset.sa){
+    const b = byId(+el.dataset.sa); if (!b) return;
+    b.sa_number = el.value;
+    const btn = document.querySelector('[data-close="' + el.dataset.sa + '"]');
+    if (btn) btn.disabled = el.value.trim().length <= 2;
+    clearTimeout(timer); timer = setTimeout(() => store.setBatch(b.id, { sa_number: b.sa_number }), 400);
+    return;
+  }
+  if (el.dataset.row){
+    // Keep the value in memory and update only what the typist can see, so the
+    // field they are in never gets rebuilt under them. The save and the full
+    // redraw happen on blur, below.
+    const id = +el.dataset.row, f = el.dataset.f;
+    const r = rows.find(x => x.id === id); if (!r) return;
+    r[f] = el.value;
+    if (ALYZA_FIELDS.includes(f)) { el.classList.toggle('missing', !el.value.trim()); refreshAlyzaChips(); }
+    clearTimeout(timer);
+    timer = setTimeout(() => store.setRow(id, { [f]: el.value }), 500);
+  }
+});
+
+// Row chips, the header count and the endorse button, without touching the inputs.
+function refreshAlyzaChips(){
+  if (role !== 'alyza') return;
+  const b = byId(openBatch); if (!b) return;
+  document.querySelectorAll('tbody tr').forEach(tr => {
+    const input = tr.querySelector('[data-row]'); if (!input) return;
+    const r = rows.find(x => x.id === +input.dataset.row); if (!r) return;
+    const chip = tr.querySelector('.chip'); if (!chip || r.verdict === 'scrap') return;
+    const m = missingOf(r).length;
+    chip.className = 'chip ' + (m ? 'amber' : 'green');
+    chip.textContent = m ? m + ' missing' : 'Complete';
+  });
+  const miss = batchMissing(b);
+  const btn = document.getElementById('endorse'); if (btn) btn.disabled = miss > 0;
+  const cs = document.querySelector('.main .cs');
+  if (cs) cs.textContent = rowsOf(b).length + ' locks · ' + (miss ? miss + ' still to complete' : 'nothing missing');
+}
+
+document.addEventListener('change', async e => {
+  const el = e.target;
+  if (el.id === 'batch-status'){ await store.setBatch(openBatch, { status: el.value }); render(); return; }
+  if (el.dataset.row){
+    clearTimeout(timer);
+    await store.setRow(+el.dataset.row, { [el.dataset.f]: el.value });
+    if (el.tagName === 'SELECT') render();
+  }
+});
+
+document.addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.role){ role = t.dataset.role; localStorage.setItem('ddl-returns-role', role); openBatch = null; render(); return; }
+  if (t.dataset.tab){ const [r, v] = t.dataset.tab.split(':'); tab[r] = v; openBatch = null; render(); return; }
+  if (t.dataset.batch){ openBatch = +t.dataset.batch; render(); return; }
+  if (t.id === 'add-row'){ await store.addRow(openBatch); render(); return; }
+  if (t.dataset.del){ await store.delRow(+t.dataset.del); render(); return; }
+  if (t.id === 'new-batch'){ const id = await store.addBatch(); if (id){ openBatch = id; render(); } return; }
+  if (t.id === 'endorse'){ await store.setBatch(openBatch, { status:'with_jerald' }); openBatch = null; render(); return; }
+  if (t.dataset.close){
+    const b = byId(+t.dataset.close);
+    await store.setBatch(b.id, { status:'closed', sa_number: b.sa_number });
+    const keep = rowsOf(b).filter(r => r.verdict !== 'scrap');
+    for (const r of keep) await store.setRow(r.id, { sa_number: b.sa_number });
+    render(); return;
+  }
+  if (t.id === 'reset'){ localStorage.removeItem(LS_KEY); location.reload(); }
+});
+
+/* -------------------------------------------------------------------- boot */
+(async function boot(){
+  try {
+    if (LIVE) client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    await store.load();
+    render();
+  } catch (err){
+    $('#view').innerHTML = '<div class="card"><div class="empty">Could not load the returns: ' + esc(err.message) + '</div></div>';
+  }
+})();
+</script>
+</body>
+</html>

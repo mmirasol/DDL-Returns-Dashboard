@@ -330,9 +330,7 @@ async function start(){
   render();
 }
 function stageStrip(active){
-  return '<div class="stage">' + ROLES.map((r,i) =>
-    (i ? '<span aria-hidden="true">→</span>' : '') +
-    '<span class="s' + (r.id === active ? ' on' : '') + '">' + esc(r.name) + '</span>').join('') + '</div>';
+  return '';
 }
 function renderBanner(){
   if (LIVE) { $('#banner').innerHTML = ''; return; }

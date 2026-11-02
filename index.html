@@ -137,8 +137,8 @@ label.inline{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--
 /* Fill these in to run against Supabase. Left blank, the page runs on the
    migrated history from data/history.json and keeps changes in this browser
    only, which is enough to walk someone through it but is not the real tool. */
-const SUPABASE_URL = '';
-const SUPABASE_ANON_KEY = '';
+const SUPABASE_URL = 'https://tfpgywqmwnjesesfcmcg.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_j6MIouzm484dXuHqH76JNw_39ol8cBx';
 
 const LIVE = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 const LS_KEY = 'ddl-returns-demo-v1';
@@ -148,6 +148,11 @@ const ROLES = [
   { id:'alyza',  name:'Alyza',  job:'complete and endorse' },
   { id:'jerald', name:'Jerald', job:'Unleashed' }
 ];
+
+/* Each person signs in and lands on their own screen. The role rides on the
+   account, not on a button, so nobody can wander into someone else's job.
+   Role buttons only ever appear in preview mode, where there is no sign-in. */
+let session = null;
 
 /* ------------------------------------------------------------------- state */
 let client = null;
@@ -267,9 +272,62 @@ const store = {
 
 /* ------------------------------------------------------------------ chrome */
 function renderRoles(){
+  if (LIVE){
+    const who = ROLES.find(r => r.id === role) || { name:'Signed in', job:'' };
+    $('#roles').innerHTML =
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+      '<span class="chip blue" style="padding:8px 14px;font-size:13px">' + esc(who.name) + ' · ' + esc(who.job) + '</span>' +
+      '<button type="button" class="btn" id="change-pw" style="min-height:40px;padding:8px 14px">Change password</button>' +
+      '<button type="button" class="btn" id="sign-out" style="min-height:40px;padding:8px 14px">Sign out</button></div>';
+    return;
+  }
   $('#roles').innerHTML = ROLES.map(r =>
     '<button type="button" class="role" data-role="' + r.id + '" aria-pressed="' + (r.id === role) + '">' +
     esc(r.name) + '<small>' + esc(r.job) + '</small></button>').join('');
+}
+
+function renderSignIn(msg){
+  $('#roles').innerHTML = '';
+  $('#banner').innerHTML = '';
+  $('#sub').textContent = 'Digital Door Locks';
+  $('#view').innerHTML =
+    '<div class="card" style="max-width:420px;margin:40px auto 0">' +
+      '<div class="cardhead bare" style="display:block">' +
+        '<p class="ct">Sign in</p>' +
+        '<p class="cs">Use the email and password you were sent.</p>' +
+      '</div>' +
+      '<form id="signin" style="padding:0 17px 19px;display:flex;flex-direction:column;gap:12px">' +
+        '<label style="display:block"><span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:5px">Email</span>' +
+        '<input type="email" id="email" class="box" autocomplete="username" required style="width:100%"></label>' +
+        '<label style="display:block"><span style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:5px">Password</span>' +
+        '<input type="password" id="password" class="box" autocomplete="current-password" required style="width:100%"></label>' +
+        (msg ? '<p style="margin:0;color:var(--critical);font-size:13px">' + esc(msg) + '</p>' : '') +
+        '<button type="submit" class="btn primary" style="width:100%">Sign in</button>' +
+      '</form>' +
+    '</div>';
+  const f = document.getElementById('signin');
+  f.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const btn = f.querySelector('button'); btn.disabled = true; btn.textContent = 'Signing in…';
+    const { data, error } = await client.auth.signInWithPassword({
+      email: document.getElementById('email').value.trim(),
+      password: document.getElementById('password').value
+    });
+    if (error){ renderSignIn(error.message); return; }
+    session = data.session;
+    await start();
+  });
+}
+
+function roleOf(user){
+  const m = (user && (user.app_metadata || {})).role || (user && (user.user_metadata || {})).role;
+  return ROLES.some(r => r.id === m) ? m : 'anton';
+}
+
+async function start(){
+  if (LIVE) role = roleOf(session && session.user);
+  await store.load();
+  render();
 }
 function stageStrip(active){
   return '<div class="stage">' + ROLES.map((r,i) =>
@@ -557,6 +615,15 @@ document.addEventListener('change', async e => {
 
 document.addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return;
+  if (t.id === 'sign-out'){ await client.auth.signOut(); session = null; renderSignIn(); return; }
+  if (t.id === 'change-pw'){
+    const pw = prompt('New password (at least 8 characters)');
+    if (!pw) return;
+    if (pw.length < 8){ alert('Too short. Use at least 8 characters.'); return; }
+    const { error } = await client.auth.updateUser({ password: pw });
+    alert(error ? 'Could not change it: ' + error.message : 'Password changed.');
+    return;
+  }
   if (t.dataset.role){ role = t.dataset.role; localStorage.setItem('ddl-returns-role', role); openBatch = null; render(); return; }
   if (t.dataset.tab){ const [r, v] = t.dataset.tab.split(':'); tab[r] = v; openBatch = null; render(); return; }
   if (t.dataset.batch){ openBatch = +t.dataset.batch; render(); return; }
@@ -577,9 +644,13 @@ document.addEventListener('click', async e => {
 /* -------------------------------------------------------------------- boot */
 (async function boot(){
   try {
-    if (LIVE) client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    await store.load();
-    render();
+    if (LIVE){
+      client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data } = await client.auth.getSession();
+      session = data.session;
+      if (!session){ renderSignIn(); return; }
+    }
+    await start();
   } catch (err){
     $('#view').innerHTML = '<div class="card"><div class="empty">Could not load the returns: ' + esc(err.message) + '</div></div>';
   }

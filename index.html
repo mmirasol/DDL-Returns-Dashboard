@@ -123,7 +123,7 @@ label.inline{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--
 <div class="wrap">
   <header class="top">
     <div>
-      <h1>Customer returns</h1>
+      <h1>Customer Returns</h1>
       <p class="sub" id="sub">Digital Door Locks</p>
     </div>
     <div class="roles" id="roles" role="group" aria-label="Who are you"></div>
@@ -144,8 +144,8 @@ const LIVE = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 const LS_KEY = 'ddl-returns-demo-v1';
 
 const ROLES = [
-  { id:'anton',  name:'Anton',  job:'inspect and list' },
-  { id:'alyza',  name:'Alyza',  job:'complete and endorse' },
+  { id:'anton',  name:'Anton',  job:'inspect, list and send' },
+  { id:'alyza',  name:'Alyza',  job:'look up returns' },
   { id:'jerald', name:'Jerald', job:'Unleashed' }
 ];
 
@@ -169,10 +169,13 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 const rowsOf = b => rows.filter(r => r.batch_id === b.id);
 const byId = id => batches.find(b => b.id === id);
 
-const ALYZA_FIELDS = ['model','colour','qty','customer'];
+/* Anton completes every row himself and sends the batch straight to Jerald.
+   These are the fields Jerald needs to adjust stock; scrap rows need none. */
+const REQUIRED = ['model','colour','qty','serial'];
+const COLOURS = ['','Black','Copper','Silver','Gold','White','n/a'];
 function missingOf(r){
   if (r.verdict === 'scrap') return [];
-  return ALYZA_FIELDS.filter(f => !String(r[f] || '').trim());
+  return REQUIRED.filter(f => !String(r[f] || '').trim());
 }
 function batchMissing(b){ return rowsOf(b).filter(r => missingOf(r).length).length; }
 function counts(b){
@@ -184,8 +187,8 @@ function counts(b){
   return rs.length + ' locks · ' + g + ' good, ' + s + ' scrap' + (u ? ', ' + u + ' not sure' : '');
 }
 function batchChip(status){
-  if (status === 'draft')       return ['grey','With Anton'];
-  if (status === 'with_alyza')  return ['blue','With Alyza'];
+  // with_alyza is the retired middle step; any batch left there is back with Anton.
+  if (status === 'draft' || status === 'with_alyza') return ['grey','With Anton'];
   if (status === 'with_jerald') return ['amber','With Jerald'];
   return ['green','Closed'];
 }
@@ -240,7 +243,7 @@ const store = {
   },
   async addRow(batch_id){
     const blank = { batch_id, lock_text:'', order_no:'', serial:'', verdict:'good', notes:'',
-                    model:'', colour:'', qty:'', customer:'', comment:'', sa_number:null };
+                    model:'', colour:'', qty:'1', customer:'', comment:'', sa_number:null };
     if (LIVE){
       const { data, error } = await client.from('returns_row').insert(blank).select().single();
       if (error) { alert('Could not add a row: ' + error.message); return; }
@@ -257,7 +260,7 @@ const store = {
   },
   async addBatch(){
     const today = new Date().toISOString().slice(0,10);
-    const label = 'Customer returns ' + new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long' });
+    const label = 'Customer Returns ' + new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long' });
     const blank = { label, opened_on: today, status:'draft', source:'app', sa_number:null };
     if (LIVE){
       const { data, error } = await client.from('returns_batch').insert(blank).select().single();
@@ -350,9 +353,10 @@ function viewAnton(){
   if (!b) return '<p class="note">No batches yet.</p>';
   openBatch = b.id;
 
-  const editable = b.status === 'draft';
+  const editable = b.status === 'draft' || b.status === 'with_alyza';
   const closed = b.status === 'closed';
   const rs = rowsOf(b);
+  const miss = batchMissing(b);
 
   const rail = list.map(x => {
     const c = batchChip(x.status);
@@ -362,44 +366,56 @@ function viewAnton(){
       '<span class="chip ' + c[0] + '" style="margin-top:8px">' + c[1] + '</span></button>';
   }).join('');
 
-  const body = rs.map(r =>
-    '<tr>' +
-    '<td><input type="text" data-row="' + r.id + '" data-f="lock_text" value="' + esc(r.lock_text) + '"' + (editable ? '' : ' disabled') + ' aria-label="Lock for row ' + r.id + '" placeholder="e.g. DDL709 INBODY COPPER"></td>' +
-    '<td><input type="text" data-row="' + r.id + '" data-f="order_no" value="' + esc(r.order_no) + '"' + (editable ? '' : ' disabled') + ' aria-label="Order number for row ' + r.id + '" placeholder="customer, retailer or consignment"></td>' +
-    '<td><input type="text" class="mono" data-row="' + r.id + '" data-f="serial" value="' + esc(r.serial) + '"' + (editable ? '' : ' disabled') + ' aria-label="Serial number for row ' + r.id + '" placeholder="serial number"></td>' +
-    '<td><select data-row="' + r.id + '" data-f="verdict"' + (editable ? '' : ' disabled') + ' aria-label="Verdict for row ' + r.id + '">' +
-      ['good','scrap','unsure'].map(v => '<option value="' + v + '"' + (r.verdict === v ? ' selected' : '') + '>' +
-        (v === 'good' ? 'Good — add to stock' : v === 'scrap' ? 'Scrap' : 'Not sure') + '</option>').join('') +
+  const dis = editable ? '' : ' disabled';
+  const body = rs.map(r => {
+    const scrap = r.verdict === 'scrap';
+    const cls = (f, extra) => {
+      const c = (extra || '') + ((editable && !scrap && !String(r[f] || '').trim()) ? ' missing' : '');
+      return c.trim() ? ' class="' + c.trim() + '"' : '';
+    };
+    return '<tr' + (scrap ? ' class="muted"' : '') + '>' +
+    '<td><input type="text"' + cls('model') + ' data-row="' + r.id + '" data-f="model" value="' + esc(r.model) + '"' + dis + ' aria-label="Model or part for row ' + r.id + '" placeholder="' + esc(r.lock_text || 'e.g. DDL709-FVP-7HWS') + '"></td>' +
+    '<td><select' + cls('colour') + ' data-row="' + r.id + '" data-f="colour"' + dis + ' aria-label="Colour for row ' + r.id + '">' +
+      COLOURS.concat(COLOURS.includes(r.colour || '') ? [] : [r.colour]).map(c => '<option value="' + esc(c) + '"' + ((r.colour || '') === c ? ' selected' : '') + '>' + (esc(c) || '—') + '</option>').join('') +
       '</select></td>' +
-    '<td><input type="text" data-row="' + r.id + '" data-f="notes" value="' + esc(r.notes) + '"' + (editable ? '' : ' disabled') + ' aria-label="Notes for row ' + r.id + '" placeholder="notes"></td>' +
-    '<td style="text-align:right">' + (editable ? '<button type="button" class="x" data-del="' + r.id + '" aria-label="Remove row ' + r.id + '">×</button>' : '') + '</td></tr>').join('');
+    '<td><input type="text"' + cls('qty') + ' data-row="' + r.id + '" data-f="qty" value="' + esc(r.qty) + '"' + dis + ' aria-label="Quantity for row ' + r.id + '" placeholder="qty"></td>' +
+    '<td><input type="text"' + cls('serial', 'mono') + ' data-row="' + r.id + '" data-f="serial" value="' + esc(r.serial) + '"' + dis + ' aria-label="Serial number for row ' + r.id + '" placeholder="serial number"></td>' +
+    '<td><input type="text" data-row="' + r.id + '" data-f="order_no" value="' + esc(r.order_no) + '"' + dis + ' aria-label="Order number for row ' + r.id + '" placeholder="customer, retailer or consignment"></td>' +
+    '<td><select data-row="' + r.id + '" data-f="verdict"' + dis + ' aria-label="Verdict for row ' + r.id + '">' +
+      ['good','scrap','unsure'].map(v => '<option value="' + v + '"' + (r.verdict === v ? ' selected' : '') + '>' +
+        (v === 'good' ? 'Good, add to stock' : v === 'scrap' ? 'Scrap' : 'Not sure') + '</option>').join('') +
+      '</select></td>' +
+    '<td><input type="text" data-row="' + r.id + '" data-f="notes" value="' + esc(r.notes) + '"' + dis + ' aria-label="Comment for row ' + r.id + '" placeholder="comment"></td>' +
+    '<td style="text-align:right">' + (editable ? '<button type="button" class="x" data-del="' + r.id + '" aria-label="Remove row ' + r.id + '">×</button>' : '') + '</td></tr>';
+  }).join('');
 
   const statusCtl = closed
     ? '<span class="chip green">Closed by Jerald</span>'
-    : '<label class="inline">Batch status' +
-      '<select class="box" id="batch-status" style="width:230px" aria-label="Status of this batch">' +
-      '<option value="draft"' + (b.status === 'draft' ? ' selected' : '') + '>Still inspecting</option>' +
-      '<option value="with_alyza"' + (b.status !== 'draft' ? ' selected' : '') + '>Ready for Alyza</option>' +
-      '</select></label>';
+    : editable
+      ? '<button type="button" class="btn primary" id="send-jerald"' + ((miss || !rs.length) ? ' disabled' : '') + '>Send batch to Jerald</button>'
+      : '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="chip amber">With Jerald</span>' +
+        '<button type="button" class="btn" id="take-back">Take it back</button></div>';
 
   const note = closed
     ? 'Jerald has added this batch back into stock. It is here so you can look it up, nothing more.'
     : editable
-      ? 'Set the status to Ready for Alyza when the whole batch is inspected. Until then it stays yours, however long that takes.'
-      : 'This batch is with Alyza, so the rows are read only. Set it back to Still inspecting if you need to change something.';
+      ? 'Fill model, colour, qty and serial on every row that is not scrap. Send to Jerald unlocks when nothing outlined is left. Until then the batch stays yours, however long that takes.'
+      : 'This batch is with Jerald, so the rows are read only. Take it back if you need to change something before he closes it.';
 
   return stageStrip('anton') +
    '<div class="cols" style="margin-top:14px">' +
     '<div class="rail"><div class="railhead"><h2>Your batches</h2>' +
       '<button type="button" class="btn ghost" id="new-batch">+ New batch</button></div>' + rail +
-      '<p class="note" style="margin-top:4px">A batch stays open until you say it is ready. Start a new one whenever you like.</p></div>' +
+      '<p class="note" style="margin-top:4px">A batch stays open until you send it. Start a new one whenever you like.</p></div>' +
     '<div class="main">' +
       '<div class="card' + (editable ? '' : ' on') + '"><div class="cardhead bare">' +
-        '<div><p class="ct">' + esc(b.label) + '</p><p class="cs">' + esc(dateLabel(b.opened_on)) + ' · ' + counts(b) + '</p></div>' +
+        '<div><p class="ct">' + esc(b.label) + '</p><p class="cs">' + esc(dateLabel(b.opened_on)) + ' · ' + counts(b) +
+        (editable && miss ? ' · <span id="miss-count">' + miss + ' row' + (miss > 1 ? 's' : '') + ' to complete</span>' : '') + '</p></div>' +
         statusCtl + '</div></div>' +
       '<div class="card"><div class="scroll"><table><thead><tr>' +
-        '<th style="width:210px">Lock</th><th style="width:250px">Order no</th><th style="width:245px">Serial number</th>' +
-        '<th style="width:190px">Verdict</th><th>Notes</th><th style="width:54px"><span class="sr">Remove</span></th>' +
+        '<th style="width:220px">Model / part</th><th style="width:115px">Colour</th><th style="width:70px">Qty</th>' +
+        '<th style="width:240px">Serial number</th><th style="width:220px">Order no</th>' +
+        '<th style="width:175px">Verdict</th><th>Comment</th><th style="width:54px"><span class="sr">Remove</span></th>' +
         '</tr></thead><tbody>' + body + '</tbody></table></div>' +
         (rs.length ? '' : '<div class="empty">No locks in this batch yet.</div>') +
         (editable ? '<div class="foot"><button type="button" class="btn" id="add-row" style="min-height:40px">+ Add row</button></div>' : '') +
@@ -410,91 +426,31 @@ function viewAnton(){
 
 /* ------------------------------------------------------------------- Alyza */
 function viewAlyza(){
-  const t = tab.alyza || 'queue';
-  const waiting = batches.filter(b => b.status === 'with_alyza');
-  const tabs = '<div class="tabs">' +
-    '<button type="button" class="role" data-tab="alyza:queue" aria-pressed="' + (t === 'queue') + '">Waiting for me (' + waiting.length + ')</button>' +
-    '<button type="button" class="role" data-tab="alyza:all" aria-pressed="' + (t === 'all') + '">All returns (' + rows.length + ')</button>' +
-    '</div>';
-
-  if (t === 'all'){
-    const q = search.toLowerCase();
-    const hits = rows.filter(r => !q || (r.model + ' ' + r.lock_text + ' ' + r.serial + ' ' + r.customer + ' ' + r.order_no).toLowerCase().includes(q));
-    const shown = hits.slice(0, 300);
-    const body = shown.map(r => {
-      const b = byId(r.batch_id) || {};
-      const out = r.sa_number ? esc(r.sa_number) : (r.verdict === 'scrap' ? 'Scrapped' : esc(r.legacy_status || '—'));
-      return '<tr><td style="white-space:nowrap;color:var(--text-secondary)">' + esc(b.label || '') + '</td>' +
-        '<td>' + esc(r.model || r.lock_text) + '</td>' +
-        '<td><span class="mono">' + esc(r.serial || '—') + '</span></td>' +
-        '<td>' + esc(r.customer || r.order_no || '—') + '</td>' +
-        '<td style="color:var(--text-secondary)">' + esc(r.comment || r.legacy_resell || '—') + '</td>' +
-        '<td><span class="mono" style="color:var(--accent)">' + out + '</span></td></tr>';
-    }).join('');
-    return stageStrip('alyza') + '<div style="margin-top:14px">' + tabs +
-      '<div class="card"><div class="cardhead">' +
-        '<div><p class="ct">Every return on record</p><p class="cs">' + rows.length + ' rows across ' + batches.length +
-        ' batches, carried over from Return to UNLEASHED.xlsx</p></div>' +
-        '<label class="inline">Search<input type="text" class="box" id="search" style="width:260px" value="' + esc(search) + '" placeholder="serial, model or customer"></label>' +
-      '</div><div class="scroll"><table><thead><tr>' +
-        '<th style="width:190px">Batch</th><th style="width:220px">Model / part</th><th style="width:230px">Serial</th>' +
-        '<th style="width:200px">Customer</th><th>Comment</th><th style="width:160px">Outcome</th>' +
-      '</tr></thead><tbody>' + body + '</tbody></table></div>' +
-      '<div class="foot">Showing ' + shown.length + ' of ' + rows.length + ' rows. Outcome is the Unleashed stock adjustment Jerald recorded.</div>' +
-      '</div></div>';
-  }
-
-  let b = waiting.find(x => x.id === openBatch) || waiting[0];
-  if (!b){
-    return stageStrip('alyza') + '<div style="margin-top:14px">' + tabs +
-      '<div class="card"><div class="empty">Nothing waiting. Every batch Anton has sent is with Jerald.</div></div></div>';
-  }
-  openBatch = b.id;
-  const rs = rowsOf(b);
-  const miss = batchMissing(b);
-
-  const rail = waiting.map(x => {
-    const m = batchMissing(x);
-    return '<button type="button" class="batch" data-batch="' + x.id + '" aria-pressed="' + (x.id === b.id) + '">' +
-      '<span class="bt">' + esc(x.label) + '</span>' +
-      '<span class="bs">' + rowsOf(x).length + ' locks · ' + esc(dateLabel(x.opened_on)) + '</span>' +
-      '<span class="chip ' + (m ? 'amber' : 'green') + '" style="margin-top:8px">' + (m ? m + ' rows to complete' : 'Complete') + '</span></button>';
-  }).join('');
-
-  const body = rs.map(r => {
-    const m = missingOf(r);
-    const scrap = r.verdict === 'scrap';
-    const chip = scrap ? ['red','Scrap'] : m.length ? ['amber', m.length + ' missing'] : ['green','Complete'];
-    const cls = f => (!String(r[f] || '').trim() && !scrap) ? ' class="missing"' : '';
-    const dis = scrap ? ' disabled' : '';
-    return '<tr' + (scrap ? ' class="muted"' : '') + '>' +
-      '<td><span class="chip ' + chip[0] + '">' + chip[1] + '</span></td>' +
-      '<td><input type="text"' + cls('model') + ' data-row="' + r.id + '" data-f="model" value="' + esc(r.model) + '"' + dis + ' aria-label="Model for ' + esc(r.serial) + '" placeholder="' + (scrap ? 'not needed' : 'product code') + '"></td>' +
-      '<td><select' + cls('colour') + ' data-row="' + r.id + '" data-f="colour"' + dis + ' aria-label="Colour for ' + esc(r.serial) + '">' +
-        ['','Black','Copper','Silver','n/a'].map(c => '<option value="' + c + '"' + (r.colour === c ? ' selected' : '') + '>' + (c || '—') + '</option>').join('') +
-        '</select></td>' +
-      '<td><input type="text"' + cls('qty') + ' data-row="' + r.id + '" data-f="qty" value="' + esc(r.qty) + '"' + dis + ' aria-label="Quantity for ' + esc(r.serial) + '" placeholder="qty"></td>' +
+  // Support looks returns up here when a customer follows up on a refund. Read only.
+  const q = search.toLowerCase();
+  const hits = rows.filter(r => !q || (r.model + ' ' + r.lock_text + ' ' + r.serial + ' ' + r.customer + ' ' + r.order_no).toLowerCase().includes(q));
+  const shown = hits.slice(0, 300);
+  const body = shown.map(r => {
+    const b = byId(r.batch_id) || {};
+    const out = r.sa_number ? esc(r.sa_number) : (r.verdict === 'scrap' ? 'Scrapped' : esc(r.legacy_status || batchChip(b.status)[1]));
+    return '<tr><td style="white-space:nowrap;color:var(--text-secondary)">' + esc(b.label || '') + '</td>' +
+      '<td>' + esc(r.model || r.lock_text) + '</td>' +
       '<td><span class="mono">' + esc(r.serial || '—') + '</span></td>' +
-      '<td style="color:var(--text-secondary)">' + esc(r.order_no || '—') + '</td>' +
-      '<td><input type="text"' + cls('customer') + ' data-row="' + r.id + '" data-f="customer" value="' + esc(r.customer) + '"' + dis + ' aria-label="Customer for ' + esc(r.serial) + '" placeholder="who returned it"></td>' +
-      '<td><input type="text" data-row="' + r.id + '" data-f="comment" value="' + esc(r.comment) + '"' + dis + ' aria-label="Comment for ' + esc(r.serial) + '" placeholder="—"></td></tr>';
+      '<td>' + esc(r.customer || r.order_no || '—') + '</td>' +
+      '<td style="color:var(--text-secondary)">' + esc(r.comment || r.notes || r.legacy_resell || '—') + '</td>' +
+      '<td><span class="mono" style="color:var(--accent)">' + out + '</span></td></tr>';
   }).join('');
-
-  return stageStrip('alyza') + '<div style="margin-top:14px">' + tabs +
-    '<div class="cols">' +
-    '<div class="rail"><h2>Batches waiting for you</h2>' + rail + '</div>' +
-    '<div class="main">' +
-      '<div class="card on"><div class="cardhead bare">' +
-        '<div><p class="ct">' + esc(b.label) + '</p><p class="cs">' + rs.length + ' locks · ' + (miss ? miss + ' still to complete' : 'nothing missing') + '</p></div>' +
-        '<button type="button" class="btn primary" id="endorse"' + (miss ? ' disabled' : '') + '>Endorse batch to Jerald</button>' +
-      '</div></div>' +
-      '<div class="card"><div class="scroll"><table><thead><tr>' +
-        '<th style="width:120px">Row</th><th style="width:210px">Model / part</th><th style="width:115px">Colour</th>' +
-        '<th style="width:70px">Qty</th><th style="width:225px">Serial</th><th style="width:205px">Order no <span style="font-weight:400">(Anton)</span></th>' +
-        '<th style="width:175px">Customer</th><th>Comment</th>' +
-      '</tr></thead><tbody>' + body + '</tbody></table></div></div>' +
-      '<p class="note">Blanks stay outlined until they are filled. Endorse is off until the whole batch is complete, and scrap rows never reach Jerald.</p>' +
-    '</div></div></div>';
+  return stageStrip('alyza') + '<div style="margin-top:14px">' +
+    '<div class="card"><div class="cardhead">' +
+      '<div><p class="ct">Every return on record</p><p class="cs">' + rows.length + ' rows across ' + batches.length +
+      ' batches. Read only.</p></div>' +
+      '<label class="inline">Search<input type="text" class="box" id="search" style="width:260px" value="' + esc(search) + '" placeholder="serial, model or customer"></label>' +
+    '</div><div class="scroll"><table><thead><tr>' +
+      '<th style="width:190px">Batch</th><th style="width:220px">Model / part</th><th style="width:230px">Serial</th>' +
+      '<th style="width:200px">Customer / order</th><th>Comment</th><th style="width:160px">Outcome</th>' +
+    '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+    '<div class="foot">Showing ' + shown.length + ' of ' + hits.length + ' matching rows. Outcome is the Unleashed stock adjustment Jerald recorded, or where the batch is now.</div>' +
+    '</div></div>';
 }
 
 /* ------------------------------------------------------------------ Jerald */
@@ -511,7 +467,7 @@ function viewJerald(){
 
   if (!shown.length){
     return stageStrip('jerald') + '<div style="margin-top:14px">' + tabs +
-      '<div class="card"><div class="empty">Nothing here. Alyza has not endorsed a batch yet.</div></div></div>';
+      '<div class="card"><div class="empty">Nothing here. Anton has not sent a batch yet.</div></div></div>';
   }
 
   const cards = shown.map(b => {
@@ -524,7 +480,7 @@ function viewJerald(){
       '<td>' + esc(r.colour || '—') + '</td><td>' + esc(r.qty || '—') + '</td>' +
       '<td><span class="mono">' + esc(r.serial || '—') + '</span></td>' +
       '<td>' + esc(r.customer || r.order_no || '—') + '</td>' +
-      '<td style="color:var(--text-secondary)">' + esc(r.comment || '—') + '</td></tr>').join('');
+      '<td style="color:var(--text-secondary)">' + esc(r.comment || r.notes || '—') + '</td></tr>').join('');
 
     const head = closed
       ? '<span class="chip green">Returned to stock · <span class="mono">' + esc(b.sa_number || 'no number') + '</span></span>'
@@ -577,33 +533,24 @@ document.addEventListener('input', e => {
     const id = +el.dataset.row, f = el.dataset.f;
     const r = rows.find(x => x.id === id); if (!r) return;
     r[f] = el.value;
-    if (ALYZA_FIELDS.includes(f)) { el.classList.toggle('missing', !el.value.trim()); refreshAlyzaChips(); }
+    if (REQUIRED.includes(f)) { el.classList.toggle('missing', !el.value.trim()); refreshSend(); }
     clearTimeout(timer);
     timer = setTimeout(() => store.setRow(id, { [f]: el.value }), 500);
   }
 });
 
-// Row chips, the header count and the endorse button, without touching the inputs.
-function refreshAlyzaChips(){
-  if (role !== 'alyza') return;
+// The missing count and the send button, without touching the inputs.
+function refreshSend(){
+  if (role !== 'anton') return;
   const b = byId(openBatch); if (!b) return;
-  document.querySelectorAll('tbody tr').forEach(tr => {
-    const input = tr.querySelector('[data-row]'); if (!input) return;
-    const r = rows.find(x => x.id === +input.dataset.row); if (!r) return;
-    const chip = tr.querySelector('.chip'); if (!chip || r.verdict === 'scrap') return;
-    const m = missingOf(r).length;
-    chip.className = 'chip ' + (m ? 'amber' : 'green');
-    chip.textContent = m ? m + ' missing' : 'Complete';
-  });
   const miss = batchMissing(b);
-  const btn = document.getElementById('endorse'); if (btn) btn.disabled = miss > 0;
-  const cs = document.querySelector('.main .cs');
-  if (cs) cs.textContent = rowsOf(b).length + ' locks · ' + (miss ? miss + ' still to complete' : 'nothing missing');
+  const btn = document.getElementById('send-jerald'); if (btn) btn.disabled = miss > 0 || !rowsOf(b).length;
+  const mc = document.getElementById('miss-count');
+  if (mc) mc.textContent = miss ? miss + ' row' + (miss > 1 ? 's' : '') + ' to complete' : 'nothing missing';
 }
 
 document.addEventListener('change', async e => {
   const el = e.target;
-  if (el.id === 'batch-status'){ await store.setBatch(openBatch, { status: el.value }); render(); return; }
   if (el.dataset.row){
     clearTimeout(timer);
     await store.setRow(+el.dataset.row, { [el.dataset.f]: el.value });
@@ -628,7 +575,11 @@ document.addEventListener('click', async e => {
   if (t.id === 'add-row'){ await store.addRow(openBatch); render(); return; }
   if (t.dataset.del){ await store.delRow(+t.dataset.del); render(); return; }
   if (t.id === 'new-batch'){ const id = await store.addBatch(); if (id){ openBatch = id; render(); } return; }
-  if (t.id === 'endorse'){ await store.setBatch(openBatch, { status:'with_jerald' }); openBatch = null; render(); return; }
+  if (t.id === 'send-jerald'){
+    const b = byId(openBatch); if (!b || batchMissing(b)) return;
+    await store.setBatch(b.id, { status:'with_jerald' }); render(); return;
+  }
+  if (t.id === 'take-back'){ await store.setBatch(openBatch, { status:'draft' }); render(); return; }
   if (t.dataset.close){
     const b = byId(+t.dataset.close);
     await store.setBatch(b.id, { status:'closed', sa_number: b.sa_number });

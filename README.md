@@ -1,7 +1,8 @@
 # DDL Returns
 
-One list that Anton, Alyza and Jerald all use, replacing the weekly emailed
-spreadsheet and the hand-maintained `Return to UNLEASHED.xlsx`.
+One list that Anton, Jerald and Alyza all use, replacing the weekly emailed
+spreadsheet and the hand-maintained `Return to UNLEASHED.xlsx`. How each person
+uses it: [RUNBOOK.md](RUNBOOK.md).
 
 Same shape as the other DDL dashboards: a single `index.html` served by GitHub
 Pages, talking to Supabase from the browser, so a data change needs no commit,
@@ -15,12 +16,25 @@ already worked (`4th BATCH (Oct 31 & Nov 13)`).
 
 | Stage | Who | What they do | Batch status |
 |---|---|---|---|
-| 1 | **Anton** | Adds, edits and deletes rows in the four fields he fills today. Sets the batch ready when it is inspected. | `draft` → `with_alyza` |
-| 2 | **Alyza** | Sees only batches marked for her. Fills model, colour, quantity and customer. Endorse is disabled until nothing is missing. | `with_alyza` → `with_jerald` |
-| 3 | **Jerald** | Sees only endorsed batches, scrap rows stripped out. Records the Unleashed stock adjustment number, which closes the batch. | `with_jerald` → `closed` |
+| 1 | **Anton** | Adds rows and fills every field: model, colour, qty, serial, order no, verdict, comment. Send is disabled until model, colour, qty and serial are filled on every row that is not scrap. | `draft` → `with_jerald` |
+| 2 | **Jerald** | Sees only sent batches, scrap rows stripped out. Records the Unleashed stock adjustment number, which closes the batch. Emailed when a batch arrives. | `with_jerald` → `closed` |
+| — | **Alyza** | Read-only search across every return, for support follow-ups. | none |
 
-Anton can reopen a batch he has sent. He can read closed batches but not change
-them.
+Anton can take a sent batch back until Jerald closes it. He can read closed
+batches but not change them.
+
+**Changed 17 Nov 2026**: Alyza's completing and endorsing step was removed at
+Mark's request; Anton now does all the data entry and sends straight to Jerald.
+`with_alyza` stays in the schema's check constraint, and any batch left in it is
+treated as still with Anton.
+
+### Jerald's email
+
+`sql/notify_jerald.sql` adds a trigger on `returns_batch` that posts every status
+change to the n8n workflow `DDL Returns → email Jerald when a batch is sent`
+(`pqr5LM7SbDrOCBt8`) on samddl1973.app.n8n.cloud. The workflow emails Jerald only
+when the new status is `with_jerald`, through the `Microsoft Outlook - mark`
+credential. No Supabase key is stored in n8n for this.
 
 ## Running it
 
